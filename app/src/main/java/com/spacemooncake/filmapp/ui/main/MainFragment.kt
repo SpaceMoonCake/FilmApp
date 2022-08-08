@@ -1,32 +1,80 @@
 package com.spacemooncake.filmapp.ui.main
 
-import androidx.lifecycle.ViewModelProvider
 import android.os.Bundle
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.lifecycle.Observer
 import com.spacemooncake.filmapp.R
+import com.spacemooncake.filmapp.databinding.FragmentMainBinding
+import com.spacemooncake.filmapp.model.AppState
+import com.spacemooncake.filmapp.model.entities.api_entities.Film
+import com.spacemooncake.filmapp.ui.adapters.MainFragmentAdapter
+import com.spacemooncake.filmapp.ui.details.DetailsFragment
+import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainFragment : Fragment() {
 
-    companion object {
-        fun newInstance() = MainFragment()
-    }
-
-    private lateinit var viewModel: MainViewModel
+    private val mainViewModel: MainViewModel by viewModel()
+    private var _binding: FragmentMainBinding? = null
+    private val binding get() = _binding!!
+    private var adapter: MainFragmentAdapter? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        return inflater.inflate(R.layout.fragment_main, container, false)
+        _binding = FragmentMainBinding.inflate(inflater, container, false)
+        return binding.root
     }
 
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-        viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
-        // TODO: Use the ViewModel
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        binding.recyclerView.adapter = adapter
+        val observer = Observer<AppState> { renderData(it) }
+        mainViewModel.liveData.observe(viewLifecycleOwner, observer)
+        mainViewModel.getFilmsData()
+
     }
 
+    private fun renderData(appState: AppState) = with(binding) {
+        when (appState) {
+            is AppState.Success -> {
+                adapter = MainFragmentAdapter(object : OnItemViewClickListener {
+                    override fun onItemViewClick(film: Film) {
+                        val manager = activity?.supportFragmentManager
+                        manager?.let { manager ->
+                            val bundle = Bundle().apply {
+                                putParcelable(DetailsFragment.BUNDLE_EXTRA, film)
+                            }
+                            manager.beginTransaction()
+                                .add(R.id.container, DetailsFragment.newInstance(bundle))
+                                .addToBackStack("")
+                                .commitAllowingStateLoss()
+                        }
+                    }
+                }).apply {
+                    setFilms(appState.filmData)
+                }
+                recyclerView.adapter = adapter
+            }
+
+        }
+
+    }
+
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    interface OnItemViewClickListener {
+        fun onItemViewClick(film: Film)
+    }
+
+    companion object {
+        fun newInstance() = MainFragment()
+    }
 }
